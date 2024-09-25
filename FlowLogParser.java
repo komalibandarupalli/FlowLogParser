@@ -11,17 +11,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-
 public class FlowLogParser {
-
-    private  final String logFile;
+    private final String logFile;
     private final String lookUpFile;
-
     public FlowLogParser(String logFile, String lookUpFile) {
         this.logFile = logFile;
         this.lookUpFile = lookUpFile;
     }
-
+    // Load the lookup table from the CSV file
     private Map<Integer, Lookup> loadLookUpTable() throws IOException {
         System.out.println("Loading lookup table");
         Map<Integer, Lookup> lookupTable = new HashMap<>();
@@ -37,10 +34,9 @@ public class FlowLogParser {
                 }
             }
         }
-        System.out.println("Look up table loaded");
+        System.out.println("Lookup table loaded");
         return lookupTable;
     }
-
     public void parseFlowLogsAndGenerateOutputs() throws IOException {
         Map<String, Integer> tagCounts = new HashMap<>();
         Map<String, Integer> portProtocolCounts = new HashMap<>();
@@ -52,20 +48,25 @@ public class FlowLogParser {
                 String[] parts = line.split("\\s+");
                 int dstPort = Integer.parseInt(parts[5].trim());
                 Lookup lookup = lookupTable.getOrDefault(dstPort, new Lookup(-1, "-1", "untagged"));
+                // Add tag count - check the tag from the lookup and aggregate the count
                 tagCounts.put(lookup.tag(), tagCounts.getOrDefault(lookup.tag(), 0) + 1);
-                String protocolKey = dstPort + "," + lookup.protocol().toLowerCase(Locale.ROOT);
-                portProtocolCounts.put(protocolKey, portProtocolCounts.getOrDefault(protocolKey, 0) + 1);
+                // Only consider TCP protocols
+                if (lookup.protocol().equalsIgnoreCase("tcp")) {
+                    String protocolKey = dstPort + "," + lookup.protocol().toLowerCase(Locale.ROOT);
+                    portProtocolCounts.put(protocolKey, portProtocolCounts.getOrDefault(protocolKey, 0) + 1);
+                }
             }
         }
         System.out.println("Parsing flow logs Ended");
+        // Write the output files
         writeOutputs(List.of("Tag,Count"), tagCounts, "tagCountsOutput.csv");
-        writeOutputs(List.of("Port,Protocol,Count"), tagCounts, "protocolCountsOutput.csv");
+        writeOutputs(List.of("Port,Protocol,Count"), portProtocolCounts, "protocolCountsOutput.csv");
     }
-
+    // Helper method to write the outputs to CSV files
     private void writeOutputs(List<String> headers, Map<String, Integer> map, String fileName) throws IOException {
-        System.out.println("Generating"+ fileName+" output started");
+        System.out.println("Generating " + fileName + " output started");
         try (BufferedWriter bw = Files.newBufferedWriter(Paths.get(fileName))) {
-            bw.write(String.join(",", headers)+"\n");
+            bw.write(String.join(",", headers) + "\n");
             map.forEach((k, v) -> {
                 try {
                     bw.write(k + "," + v + "\n");
@@ -74,6 +75,6 @@ public class FlowLogParser {
                 }
             });
         }
-        System.out.println("Generating"+ fileName+" output completed"+"\n");
+        System.out.println("Generating " + fileName + " output completed" + "\n");
     }
 }
